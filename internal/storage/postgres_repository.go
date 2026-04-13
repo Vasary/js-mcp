@@ -31,7 +31,7 @@ type TableNames struct {
 
 func DefaultTableNames() TableNames {
 	return TableNames{
-		Schema:        "openclaw",
+		Schema:        "public",
 		Applications:  "job_applications",
 		StatusHistory: "job_application_status_history",
 		Comments:      "job_application_comments",

@@ -8,20 +8,16 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"sync"
 
 	app "github.com/vasary/job-search-mcp/internal/application"
 )
 
-const protocolVersion = "2025-11-25"
+const protocolVersion = "2025-06-18"
 
 type Server struct {
 	service *app.Service
 	input   io.Reader
 	output  io.Writer
-
-	mu          sync.RWMutex
-	initialized bool
 }
 
 func New(service *app.Service) *Server {
@@ -35,6 +31,8 @@ func New(service *app.Service) *Server {
 func (s *Server) Run(ctx context.Context) error {
 	scanner := bufio.NewScanner(s.input)
 	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+
+	initialized := false
 
 	for scanner.Scan() {
 		select {
@@ -59,7 +57,15 @@ func (s *Server) Run(ctx context.Context) error {
 			continue
 		}
 
-		if err := s.handle(ctx, request); err != nil {
+		response, nextInitialized, accepted, err := s.handle(ctx, request, initialized)
+		if err != nil {
+			return err
+		}
+		initialized = nextInitialized
+		if accepted {
+			continue
+		}
+		if err := s.write(response); err != nil {
 			return err
 		}
 	}
@@ -67,49 +73,62 @@ func (s *Server) Run(ctx context.Context) error {
 	return scanner.Err()
 }
 
-func (s *Server) handle(ctx context.Context, request rpcRequest) error {
+func (s *Server) handle(ctx context.Context, request rpcRequest, initialized bool) (rpcResponse, bool, bool, error) {
 	switch request.Method {
 	case "ping":
-		return s.reply(request.ID, map[string]any{})
+		return rpcResponse{JSONRPC: "2.0", ID: request.ID, Result: map[string]any{}}, initialized, false, nil
 	case "initialize":
-		s.setInitialized(false)
-		return s.reply(request.ID, map[string]any{
-			"protocolVersion": protocolVersion,
-			"capabilities": map[string]any{
-				"tools": map[string]any{
-					"listChanged": false,
+		return rpcResponse{
+			JSONRPC: "2.0",
+			ID:      request.ID,
+			Result: map[string]any{
+				"protocolVersion": protocolVersion,
+				"capabilities": map[string]any{
+					"tools": map[string]any{"listChanged": false},
+				},
+				"serverInfo": map[string]any{
+					"name":    "job-search-mcp",
+					"version": "0.3.0",
 				},
 			},
-			"serverInfo": map[string]any{
-				"name":    "job-search-service",
-				"version": "0.2.0",
-			},
-		})
+		}, false, false, nil
 	case "notifications/initialized":
-		s.setInitialized(true)
-		return nil
+		return rpcResponse{}, true, true, nil
 	case "tools/list":
-		if !s.isInitialized() {
-			return s.replyError(request.ID, -32002, "server is not initialized")
+		if !initialized {
+			return sessionErrorResponse(request.ID, "server is not initialized"), initialized, false, nil
 		}
-		return s.reply(request.ID, map[string]any{"tools": toolDefinitions()})
+		return rpcResponse{
+			JSONRPC: "2.0",
+			ID:      request.ID,
+			Result:  map[string]any{"tools": toolDefinitions()},
+		}, initialized, false, nil
 	case "tools/call":
-		if !s.isInitialized() {
-			return s.replyError(request.ID, -32002, "server is not initialized")
+		if !initialized {
+			return sessionErrorResponse(request.ID, "server is not initialized"), initialized, false, nil
 		}
-		return s.handleToolCall(ctx, request)
+		response, err := s.handleToolCall(ctx, request)
+		return response, initialized, false, err
 	default:
 		if request.ID == nil {
-			return nil
+			return rpcResponse{}, initialized, true, nil
 		}
-		return s.replyError(request.ID, -32601, "method not found")
+		return rpcResponse{
+			JSONRPC: "2.0",
+			ID:      request.ID,
+			Error:   &rpcError{Code: -32601, Message: "method not found"},
+		}, initialized, false, nil
 	}
 }
 
-func (s *Server) handleToolCall(ctx context.Context, request rpcRequest) error {
+func (s *Server) handleToolCall(ctx context.Context, request rpcRequest) (rpcResponse, error) {
 	var params callToolParams
 	if err := decodeParams(request.Params, &params); err != nil {
-		return s.replyError(request.ID, -32602, "invalid params")
+		return rpcResponse{
+			JSONRPC: "2.0",
+			ID:      request.ID,
+			Error:   &rpcError{Code: -32602, Message: "invalid params"},
+		}, nil
 	}
 
 	var (
@@ -167,23 +186,29 @@ func (s *Server) handleToolCall(ctx context.Context, request rpcRequest) error {
 			result, err = s.service.UploadCoverLetterFromPath(ctx, input)
 		}
 	default:
-		return s.replyError(request.ID, -32602, fmt.Sprintf("unknown tool %q", params.Name))
+		return rpcResponse{
+			JSONRPC: "2.0",
+			ID:      request.ID,
+			Error:   &rpcError{Code: -32602, Message: fmt.Sprintf("unknown tool %q", params.Name)},
+		}, nil
 	}
 
 	if err != nil {
-		return s.replyToolError(request.ID, err)
+		return toolErrorResponse(request.ID, err), nil
 	}
 
-	return s.reply(request.ID, map[string]any{
-		"content": []map[string]any{
-			{"type": "text", "text": "ok"},
+	return rpcResponse{
+		JSONRPC: "2.0",
+		ID:      request.ID,
+		Result: map[string]any{
+			"content":           []map[string]any{{"type": "text", "text": "ok"}},
+			"structuredContent": result,
+			"isError":           false,
 		},
-		"structuredContent": result,
-		"isError":           false,
-	})
+	}, nil
 }
 
-func (s *Server) replyToolError(id any, err error) error {
+func toolErrorResponse(id any, err error) rpcResponse {
 	message := err.Error()
 	switch {
 	case errors.Is(err, app.ErrNotFound):
@@ -194,24 +219,22 @@ func (s *Server) replyToolError(id any, err error) error {
 		message = "file must be a PDF"
 	}
 
-	return s.reply(id, map[string]any{
-		"content": []map[string]any{
-			{"type": "text", "text": message},
-		},
-		"isError": true,
-	})
-}
-
-func (s *Server) reply(id any, result any) error {
-	return s.write(rpcResponse{JSONRPC: "2.0", ID: id, Result: result})
-}
-
-func (s *Server) replyError(id any, code int, message string) error {
-	return s.write(rpcResponse{
+	return rpcResponse{
 		JSONRPC: "2.0",
 		ID:      id,
-		Error:   &rpcError{Code: code, Message: message},
-	})
+		Result: map[string]any{
+			"content": []map[string]any{{"type": "text", "text": message}},
+			"isError": true,
+		},
+	}
+}
+
+func sessionErrorResponse(id any, message string) rpcResponse {
+	return rpcResponse{
+		JSONRPC: "2.0",
+		ID:      id,
+		Error:   &rpcError{Code: -32002, Message: message},
+	}
 }
 
 func (s *Server) write(response rpcResponse) error {
@@ -221,18 +244,6 @@ func (s *Server) write(response rpcResponse) error {
 	}
 	_, err = fmt.Fprintf(s.output, "%s\n", payload)
 	return err
-}
-
-func (s *Server) setInitialized(value bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.initialized = value
-}
-
-func (s *Server) isInitialized() bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.initialized
 }
 
 func decodeParams(raw json.RawMessage, out any) error {
@@ -275,128 +286,4 @@ type callToolParams struct {
 
 type getApplicationInput struct {
 	ID int64 `json:"id"`
-}
-
-func toolDefinitions() []map[string]any {
-	return []map[string]any{
-		{
-			"name":        "create_application",
-			"description": "Create a new job application with an initial status and optional first comment",
-			"inputSchema": map[string]any{
-				"type":     "object",
-				"required": []string{"companyName"},
-				"properties": map[string]any{
-					"companyName":         map[string]any{"type": "string", "minLength": 1},
-					"positionTitle":       map[string]any{"type": "string"},
-					"sourceUrl":           map[string]any{"type": "string"},
-					"workType":            map[string]any{"type": "string"},
-					"salary":              map[string]any{"type": "string"},
-					"positionDescription": map[string]any{"type": "string"},
-					"techStack":           map[string]any{"type": "string"},
-					"initialStatus":       statusSchema(),
-					"initialStatusNote":   map[string]any{"type": "string"},
-					"initialComment":      map[string]any{"type": "string"},
-				},
-			},
-		},
-		{
-			"name":        "update_application",
-			"description": "Update the editable fields of an existing job application",
-			"inputSchema": map[string]any{
-				"type":     "object",
-				"required": []string{"id"},
-				"properties": map[string]any{
-					"id":                  map[string]any{"type": "integer", "minimum": 1},
-					"companyName":         map[string]any{"type": "string"},
-					"positionTitle":       map[string]any{"type": "string"},
-					"sourceUrl":           map[string]any{"type": "string"},
-					"workType":            map[string]any{"type": "string"},
-					"salary":              map[string]any{"type": "string"},
-					"positionDescription": map[string]any{"type": "string"},
-					"techStack":           map[string]any{"type": "string"},
-				},
-			},
-		},
-		{
-			"name":        "list_applications",
-			"description": "List job applications with filters by company, position title and current status",
-			"inputSchema": map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"companyName":   map[string]any{"type": "string"},
-					"positionTitle": map[string]any{"type": "string"},
-					"currentStatus": statusSchema(),
-					"limit":         map[string]any{"type": "integer", "minimum": 0},
-					"offset":        map[string]any{"type": "integer", "minimum": 0},
-				},
-			},
-		},
-		{
-			"name":        "get_application",
-			"description": "Get one application with comments, status history and documents",
-			"inputSchema": map[string]any{
-				"type":     "object",
-				"required": []string{"id"},
-				"properties": map[string]any{
-					"id": map[string]any{"type": "integer", "minimum": 1},
-				},
-			},
-		},
-		{
-			"name":        "add_comment",
-			"description": "Add a timestamped comment to an application",
-			"inputSchema": map[string]any{
-				"type":     "object",
-				"required": []string{"applicationId", "body"},
-				"properties": map[string]any{
-					"applicationId": map[string]any{"type": "integer", "minimum": 1},
-					"body":          map[string]any{"type": "string", "minLength": 1},
-				},
-			},
-		},
-		{
-			"name":        "change_status",
-			"description": "Add a new status transition entry for an application",
-			"inputSchema": map[string]any{
-				"type":     "object",
-				"required": []string{"applicationId", "status"},
-				"properties": map[string]any{
-					"applicationId": map[string]any{"type": "integer", "minimum": 1},
-					"status":        statusSchema(),
-					"note":          map[string]any{"type": "string"},
-				},
-			},
-		},
-		{
-			"name":        "upload_cv_from_path",
-			"description": "Upload a CV PDF from a local file path and attach it to an application",
-			"inputSchema": map[string]any{
-				"type":     "object",
-				"required": []string{"applicationId", "filePath"},
-				"properties": map[string]any{
-					"applicationId": map[string]any{"type": "integer", "minimum": 1},
-					"filePath":      map[string]any{"type": "string", "minLength": 1},
-				},
-			},
-		},
-		{
-			"name":        "upload_cover_letter_from_path",
-			"description": "Upload a cover letter PDF from a local file path and attach it to an application",
-			"inputSchema": map[string]any{
-				"type":     "object",
-				"required": []string{"applicationId", "filePath"},
-				"properties": map[string]any{
-					"applicationId": map[string]any{"type": "integer", "minimum": 1},
-					"filePath":      map[string]any{"type": "string", "minLength": 1},
-				},
-			},
-		},
-	}
-}
-
-func statusSchema() map[string]any {
-	return map[string]any{
-		"type": "string",
-		"enum": []string{"applied", "screening", "interview", "offer", "rejected", "withdrawn", "accepted"},
-	}
 }

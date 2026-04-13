@@ -6,14 +6,10 @@ import (
 )
 
 type Config struct {
-	DatabaseURL    string
-	HTTPAddr       string
-	FileDir        string
-	EnableMCP      bool
-	LogLevel       string
-	HealthcheckURL string
-	DBSchema       string
-	DBTables       DBTables
+	DatabaseURL string
+	FileDir     string
+	DBSchema    string
+	DBTables    DBTables
 }
 
 type DBTables struct {
@@ -25,13 +21,9 @@ type DBTables struct {
 
 func LoadFromEnv() (Config, error) {
 	cfg := Config{
-		DatabaseURL:    os.Getenv("JOB_SEARCH_DATABASE_URL"),
-		HTTPAddr:       envOrDefault("JOB_SEARCH_HTTP_ADDR", ":80"),
-		FileDir:        envOrDefault("JOB_SEARCH_FILE_DIR", "/tmp"),
-		EnableMCP:      os.Getenv("JOB_SEARCH_ENABLE_MCP") == "true",
-		LogLevel:       envOrDefault("JOB_SEARCH_LOG_LEVEL", "info"),
-		HealthcheckURL: envOrDefault("JOB_SEARCH_HEALTHCHECK_URL", "http://127.0.0.1:8080/healthz"),
-		DBSchema:       envOrDefault("JOB_SEARCH_DB_SCHEMA", "openclaw"),
+		DatabaseURL: os.Getenv("JOB_SEARCH_DATABASE_URL"),
+		FileDir:     envOrDefault("JOB_SEARCH_FILE_DIR", "./var/data"),
+		DBSchema:    envOrDefault("JOB_SEARCH_DB_SCHEMA", "public"),
 		DBTables: DBTables{
 			Applications:  envOrDefault("JOB_SEARCH_DB_TABLE_APPLICATIONS", "job_applications"),
 			StatusHistory: envOrDefault("JOB_SEARCH_DB_TABLE_STATUS_HISTORY", "job_application_status_history"),
