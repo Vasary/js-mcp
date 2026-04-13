@@ -19,6 +19,8 @@ jobs:
     env:
       BINARY_NAME: job-search-mcp
       ARTIFACT_DIR: dist
+      ARCHIVE_NAME: job-search-mcp-linux-amd64.tar.gz
+      CHECKSUM_NAME: job-search-mcp-linux-amd64.sha256
 
     steps:
       - name: Checkout repository
@@ -42,15 +44,26 @@ jobs:
       - name: Build MCP binary
         run: CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o "${ARTIFACT_DIR}/${BINARY_NAME}-linux-amd64" ./cmd/job-search-mcp
 
+      - name: Create release archive
+        run: tar -C "${ARTIFACT_DIR}" -czf "${ARTIFACT_DIR}/${ARCHIVE_NAME}" "${BINARY_NAME}-linux-amd64"
+
+      - name: Create checksum
+        run: sha256sum "${ARTIFACT_DIR}/${ARCHIVE_NAME}" > "${ARTIFACT_DIR}/${CHECKSUM_NAME}"
+
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
           name: job-search-mcp-linux-amd64
-          path: ${{ env.ARTIFACT_DIR }}/${{ env.BINARY_NAME }}-linux-amd64
+          path: |
+            ${{ env.ARTIFACT_DIR }}/${{ env.BINARY_NAME }}-linux-amd64
+            ${{ env.ARTIFACT_DIR }}/${{ env.ARCHIVE_NAME }}
+            ${{ env.ARTIFACT_DIR }}/${{ env.CHECKSUM_NAME }}
           if-no-files-found: error
 
       - name: Publish release asset
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ env.ARTIFACT_DIR }}/${{ env.BINARY_NAME }}-linux-amd64
+          files: |
+            ${{ env.ARTIFACT_DIR }}/${{ env.ARCHIVE_NAME }}
+            ${{ env.ARTIFACT_DIR }}/${{ env.CHECKSUM_NAME }}
