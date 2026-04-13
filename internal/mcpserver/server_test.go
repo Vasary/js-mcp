@@ -50,7 +50,7 @@ func TestToolsCallListApplicationsReturnsDataInContent(t *testing.T) {
 	in := strings.Join([]string{
 		`{"jsonrpc":"2.0","id":1,"method":"initialize"}`,
 		`{"jsonrpc":"2.0","method":"notifications/initialized"}`,
-		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"list_applications","arguments":{}}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"list_job_applications","arguments":{}}}`,
 	}, "\n") + "\n"
 
 	var out bytes.Buffer
@@ -108,7 +108,7 @@ func TestToolsCallGetApplicationStatsReturnsStructuredData(t *testing.T) {
 	in := strings.Join([]string{
 		`{"jsonrpc":"2.0","id":1,"method":"initialize"}`,
 		`{"jsonrpc":"2.0","method":"notifications/initialized"}`,
-		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"get_application_stats","arguments":{}}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"get_job_application_stats","arguments":{}}}`,
 	}, "\n") + "\n"
 
 	var out bytes.Buffer
@@ -162,7 +162,7 @@ func TestToolsCallGetApplicationTimelineReturnsEvents(t *testing.T) {
 	in := strings.Join([]string{
 		`{"jsonrpc":"2.0","id":1,"method":"initialize"}`,
 		`{"jsonrpc":"2.0","method":"notifications/initialized"}`,
-		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"get_application_timeline","arguments":{"applicationId":1}}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"get_job_application_timeline","arguments":{"applicationId":1}}}`,
 	}, "\n") + "\n"
 
 	var out bytes.Buffer
@@ -209,33 +209,33 @@ func TestToolsCallResponsesContainRealData(t *testing.T) {
 		wantParts   []string
 	}{
 		{
-			name:        "search_applications",
-			requestLine: `{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"search_applications","arguments":{"query":"openai"}}}`,
+			name:        "search_job_applications",
+			requestLine: `{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"search_job_applications","arguments":{"query":"openai"}}}`,
 			wantParts:   []string{`"items"`, `"OpenAI"`},
 		},
 		{
-			name:        "get_recent_applications",
-			requestLine: `{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"get_recent_applications","arguments":{"limit":5}}}`,
+			name:        "list_recent_job_applications",
+			requestLine: `{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"list_recent_job_applications","arguments":{"limit":5}}}`,
 			wantParts:   []string{`"items"`, `"OpenAI"`},
 		},
 		{
-			name:        "get_application",
-			requestLine: `{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"get_application","arguments":{"id":1}}}`,
+			name:        "get_job_application",
+			requestLine: `{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"get_job_application","arguments":{"id":1}}}`,
 			wantParts:   []string{`"comments"`, `"statusHistory"`, `"documents"`},
 		},
 		{
-			name:        "list_documents",
-			requestLine: `{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"list_documents","arguments":{"applicationId":1}}}`,
+			name:        "list_job_application_documents",
+			requestLine: `{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"list_job_application_documents","arguments":{"applicationId":1}}}`,
 			wantParts:   []string{`"items"`, `"cv.pdf"`},
 		},
 		{
-			name:        "add_comment",
-			requestLine: `{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"add_comment","arguments":{"applicationId":1,"body":"followed up"}}}`,
+			name:        "add_job_application_note",
+			requestLine: `{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"add_job_application_note","arguments":{"applicationId":1,"body":"followed up"}}}`,
 			wantParts:   []string{`"body"`, `"followed up"`},
 		},
 		{
-			name:        "change_status",
-			requestLine: `{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"change_status","arguments":{"applicationId":1,"status":"interview","note":"scheduled"}}}`,
+			name:        "change_job_application_status",
+			requestLine: `{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"change_job_application_status","arguments":{"applicationId":1,"status":"interview","note":"scheduled"}}}`,
 			wantParts:   []string{`"status"`, `"interview"`},
 		},
 	}

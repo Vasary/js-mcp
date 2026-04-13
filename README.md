@@ -8,12 +8,12 @@ It is intended to be launched directly by an MCP client or agent runtime on the 
 
 The server provides MCP tools for:
 
-- creating job applications
-- updating job applications
-- listing job applications
-- retrieving a single application with history
-- adding timestamped comments
-- changing status with history
+- creating tracked job applications
+- updating tracked job applications
+- listing and searching tracked job applications
+- retrieving a single tracked job application with full history
+- adding timestamped notes
+- changing hiring status with history
 - attaching CV PDF files from disk
 - attaching cover letter PDF files from disk
 
@@ -105,14 +105,19 @@ bin/job-search-mcp
 
 Available tools:
 
-- `create_application`
-- `update_application`
-- `list_applications`
-- `get_application`
-- `add_comment`
-- `change_status`
-- `upload_cv_from_path`
-- `upload_cover_letter_from_path`
+- `create_job_application`
+- `update_job_application`
+- `list_job_applications`
+- `search_job_applications`
+- `list_recent_job_applications`
+- `get_job_application`
+- `get_job_application_timeline`
+- `list_job_application_documents`
+- `get_job_application_stats`
+- `add_job_application_note`
+- `change_job_application_status`
+- `attach_cv_to_job_application`
+- `attach_cover_letter_to_job_application`
 
 ## Typical MCP Client Configuration
 

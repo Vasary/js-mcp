@@ -169,8 +169,8 @@ func (s *Service) CreateApplication(ctx context.Context, input CreateApplication
 	input.InitialStatusNote = strings.TrimSpace(input.InitialStatusNote)
 	input.InitialComment = strings.TrimSpace(input.InitialComment)
 
-	if input.CompanyName == "" {
-		return ApplicationDetails{}, fmt.Errorf("%w: companyName is required", ErrInvalidInput)
+	if input.PositionTitle == "" {
+		return ApplicationDetails{}, fmt.Errorf("%w: positionTitle is required", ErrInvalidInput)
 	}
 
 	if input.InitialStatus == "" {
@@ -189,12 +189,15 @@ func (s *Service) UpdateApplication(ctx context.Context, input UpdateApplication
 	}
 	if input.CompanyName != nil {
 		trimmed := strings.TrimSpace(*input.CompanyName)
-		if trimmed == "" {
-			return ApplicationDetails{}, fmt.Errorf("%w: companyName cannot be empty", ErrInvalidInput)
-		}
 		input.CompanyName = &trimmed
 	}
-	trimStringPtr(&input.PositionTitle)
+	if input.PositionTitle != nil {
+		trimmed := strings.TrimSpace(*input.PositionTitle)
+		if trimmed == "" {
+			return ApplicationDetails{}, fmt.Errorf("%w: positionTitle cannot be empty", ErrInvalidInput)
+		}
+		input.PositionTitle = &trimmed
+	}
 	trimStringPtr(&input.SourceURL)
 	trimStringPtr(&input.WorkType)
 	trimStringPtr(&input.Salary)

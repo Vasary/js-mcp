@@ -18,7 +18,7 @@ func TestCreateApplication_DefaultsStatus(t *testing.T) {
 	svc := application.NewService(repo, nil)
 
 	_, err := svc.CreateApplication(context.Background(), application.CreateApplicationInput{
-		CompanyName: "OpenAI",
+		PositionTitle: "Go Backend Engineer",
 	})
 	if err != nil {
 		t.Fatalf("CreateApplication() error = %v", err)
@@ -26,6 +26,37 @@ func TestCreateApplication_DefaultsStatus(t *testing.T) {
 
 	if repo.created.InitialStatus != application.StatusApplied {
 		t.Fatalf("initial status = %q, want %q", repo.created.InitialStatus, application.StatusApplied)
+	}
+}
+
+func TestCreateApplication_RequiresPositionTitle(t *testing.T) {
+	t.Parallel()
+
+	svc := application.NewService(&fakeRepo{}, nil)
+	_, err := svc.CreateApplication(context.Background(), application.CreateApplicationInput{
+		CompanyName: "OpenAI",
+	})
+	if !errors.Is(err, application.ErrInvalidInput) {
+		t.Fatalf("CreateApplication() error = %v, want ErrInvalidInput", err)
+	}
+}
+
+func TestUpdateApplication_AllowsClearingCompanyName(t *testing.T) {
+	t.Parallel()
+
+	repo := &fakeRepo{}
+	svc := application.NewService(repo, nil)
+	empty := "   "
+
+	_, err := svc.UpdateApplication(context.Background(), application.UpdateApplicationInput{
+		ID:          1,
+		CompanyName: &empty,
+	})
+	if err != nil {
+		t.Fatalf("UpdateApplication() error = %v", err)
+	}
+	if repo.updated.CompanyName == nil || *repo.updated.CompanyName != "" {
+		t.Fatalf("companyName = %#v, want cleared empty string pointer", repo.updated.CompanyName)
 	}
 }
 
@@ -116,6 +147,7 @@ func TestUploadCoverLetter_DelegatesToFileStore(t *testing.T) {
 
 type fakeRepo struct {
 	created        application.CreateApplicationInput
+	updated        application.UpdateApplicationInput
 	getResult      application.ApplicationDetails
 	documentResult application.Document
 	addedDocument  application.AddDocumentRecordInput
@@ -128,7 +160,8 @@ func (f *fakeRepo) CreateApplication(_ context.Context, input application.Create
 	return application.ApplicationDetails{}, nil
 }
 
-func (f *fakeRepo) UpdateApplication(context.Context, application.UpdateApplicationInput, time.Time) (application.ApplicationDetails, error) {
+func (f *fakeRepo) UpdateApplication(_ context.Context, input application.UpdateApplicationInput, _ time.Time) (application.ApplicationDetails, error) {
+	f.updated = input
 	return application.ApplicationDetails{}, nil
 }
 

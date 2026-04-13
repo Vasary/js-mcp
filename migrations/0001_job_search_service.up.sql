@@ -1,9 +1,9 @@
-create schema if not exists openclaw;
+create schema if not exists public;
 
-create table if not exists openclaw.job_applications (
+create table if not exists public.job_applications (
     id bigserial primary key,
-    company_name varchar(255) not null,
-    position_title varchar(255),
+    company_name varchar(255),
+    position_title varchar(255) not null,
     source_url text,
     work_type varchar(50),
     salary varchar(100),
@@ -13,9 +13,9 @@ create table if not exists openclaw.job_applications (
     updated_at timestamptz not null default now()
 );
 
-create table if not exists openclaw.job_application_status_history (
+create table if not exists public.job_application_status_history (
     id bigserial primary key,
-    application_id bigint not null references openclaw.job_applications(id) on delete cascade,
+    application_id bigint not null references public.job_applications(id) on delete cascade,
     status varchar(50) not null,
     note text,
     changed_at timestamptz not null default now(),
@@ -24,21 +24,21 @@ create table if not exists openclaw.job_application_status_history (
 );
 
 create index if not exists idx_job_application_status_history_application_id_changed_at
-    on openclaw.job_application_status_history (application_id, changed_at desc, id desc);
+    on public.job_application_status_history (application_id, changed_at desc, id desc);
 
-create table if not exists openclaw.job_application_comments (
+create table if not exists public.job_application_comments (
     id bigserial primary key,
-    application_id bigint not null references openclaw.job_applications(id) on delete cascade,
+    application_id bigint not null references public.job_applications(id) on delete cascade,
     body text not null,
     created_at timestamptz not null default now()
 );
 
 create index if not exists idx_job_application_comments_application_id_created_at
-    on openclaw.job_application_comments (application_id, created_at asc, id asc);
+    on public.job_application_comments (application_id, created_at asc, id asc);
 
-create table if not exists openclaw.job_application_documents (
+create table if not exists public.job_application_documents (
     id bigserial primary key,
-    application_id bigint not null references openclaw.job_applications(id) on delete cascade,
+    application_id bigint not null references public.job_applications(id) on delete cascade,
     document_type varchar(50) not null,
     original_filename varchar(255) not null,
     content_type varchar(100) not null,
@@ -51,9 +51,9 @@ create table if not exists openclaw.job_application_documents (
 );
 
 create index if not exists idx_job_application_documents_application_id_uploaded_at
-    on openclaw.job_application_documents (application_id, uploaded_at desc, id desc);
+    on public.job_application_documents (application_id, uploaded_at desc, id desc);
 
-alter table openclaw.job_applications owner to openclaw;
-alter table openclaw.job_application_status_history owner to openclaw;
-alter table openclaw.job_application_comments owner to openclaw;
-alter table openclaw.job_application_documents owner to openclaw;
+alter table public.job_applications owner to openclaw;
+alter table public.job_application_status_history owner to openclaw;
+alter table public.job_application_comments owner to openclaw;
+alter table public.job_application_documents owner to openclaw;

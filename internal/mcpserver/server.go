@@ -138,75 +138,75 @@ func (s *Server) handleToolCall(ctx context.Context, request rpcRequest) (rpcRes
 	)
 
 	switch params.Name {
-	case "create_application":
+	case "create_job_application", "create_application":
 		var input app.CreateApplicationInput
 		err = decodeArguments(params.Arguments, &input)
 		if err == nil {
 			result, err = s.service.CreateApplication(ctx, input)
 		}
-	case "update_application":
+	case "update_job_application", "update_application":
 		var input app.UpdateApplicationInput
 		err = decodeArguments(params.Arguments, &input)
 		if err == nil {
 			result, err = s.service.UpdateApplication(ctx, input)
 		}
-	case "list_applications":
+	case "list_job_applications", "list_applications":
 		var input app.ListApplicationsInput
 		err = decodeArguments(params.Arguments, &input)
 		if err == nil {
 			result, err = s.service.ListApplications(ctx, input)
 		}
-	case "search_applications":
+	case "search_job_applications", "search_applications":
 		var input app.SearchApplicationsInput
 		err = decodeArguments(params.Arguments, &input)
 		if err == nil {
 			result, err = s.service.SearchApplications(ctx, input)
 		}
-	case "get_recent_applications":
+	case "list_recent_job_applications", "get_recent_applications":
 		var input app.RecentApplicationsInput
 		err = decodeArguments(params.Arguments, &input)
 		if err == nil {
 			result, err = s.service.GetRecentApplications(ctx, input)
 		}
-	case "get_application":
+	case "get_job_application", "get_application":
 		var input getApplicationInput
 		err = decodeArguments(params.Arguments, &input)
 		if err == nil {
 			result, err = s.service.GetApplication(ctx, input.ID)
 		}
-	case "get_application_timeline":
+	case "get_job_application_timeline", "get_application_timeline":
 		var input applicationIDInput
 		err = decodeArguments(params.Arguments, &input)
 		if err == nil {
 			result, err = s.service.GetApplicationTimeline(ctx, input.ApplicationID)
 		}
-	case "list_documents":
+	case "list_job_application_documents", "list_documents":
 		var input applicationIDInput
 		err = decodeArguments(params.Arguments, &input)
 		if err == nil {
 			result, err = s.service.ListDocuments(ctx, input.ApplicationID)
 		}
-	case "get_application_stats":
+	case "get_job_application_stats", "get_application_stats":
 		result, err = s.service.GetApplicationStats(ctx)
-	case "add_comment":
+	case "add_job_application_note", "add_comment":
 		var input app.AddCommentInput
 		err = decodeArguments(params.Arguments, &input)
 		if err == nil {
 			result, err = s.service.AddComment(ctx, input)
 		}
-	case "change_status":
+	case "change_job_application_status", "change_status":
 		var input app.ChangeStatusInput
 		err = decodeArguments(params.Arguments, &input)
 		if err == nil {
 			result, err = s.service.ChangeStatus(ctx, input)
 		}
-	case "upload_cv_from_path":
+	case "attach_cv_to_job_application", "upload_cv_from_path":
 		var input app.UploadCVFromPathInput
 		err = decodeArguments(params.Arguments, &input)
 		if err == nil {
 			result, err = s.service.UploadCVFromPath(ctx, input)
 		}
-	case "upload_cover_letter_from_path":
+	case "attach_cover_letter_to_job_application", "upload_cover_letter_from_path":
 		var input app.UploadCoverLetterFromPathInput
 		err = decodeArguments(params.Arguments, &input)
 		if err == nil {

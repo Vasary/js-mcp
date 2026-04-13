@@ -2,7 +2,7 @@
 
 ## Overview
 
-The service uses a normalized PostgreSQL schema in the `openclaw` schema.
+The service uses a normalized PostgreSQL schema in the `public` schema by default.
 
 Main entities:
 
@@ -15,9 +15,15 @@ This keeps the current application snapshot compact while preserving full histor
 
 ## Tables
 
-### `openclaw.job_applications`
+### `public.job_applications`
 
-Stores the stable fields of an application:
+Stores the stable fields of an application.
+
+Nullability rules:
+
+- `position_title` is required
+- `company_name` is optional
+- the remaining descriptive fields are optional
 
 - `company_name`
 - `position_title`
@@ -29,7 +35,7 @@ Stores the stable fields of an application:
 - `created_at`
 - `updated_at`
 
-### `openclaw.job_application_status_history`
+### `public.job_application_status_history`
 
 Stores every status change as a separate immutable event:
 
@@ -40,7 +46,7 @@ Stores every status change as a separate immutable event:
 
 The current status is derived from the latest row for an application.
 
-### `openclaw.job_application_comments`
+### `public.job_application_comments`
 
 Stores comments independently from the application row:
 
@@ -50,7 +56,7 @@ Stores comments independently from the application row:
 
 This makes comment history explicit and queryable.
 
-### `openclaw.job_application_documents`
+### `public.job_application_documents`
 
 Stores metadata for uploaded documents:
 
@@ -76,7 +82,7 @@ Current status is read from the latest status history event:
 
 ```sql
 select status, changed_at
-from openclaw.job_application_status_history
+from public.job_application_status_history
 where application_id = $1
 order by changed_at desc, id desc
 limit 1;

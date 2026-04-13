@@ -44,7 +44,7 @@ func (r *PostgresRepository) CreateApplication(ctx context.Context, input app.Cr
 	err = tx.QueryRow(
 		ctx,
 		fmt.Sprintf(insertApplication, r.applicationsTable()),
-		input.CompanyName,
+		nullIfEmpty(input.CompanyName),
 		nullIfEmpty(input.PositionTitle),
 		nullIfEmpty(input.SourceURL),
 		nullIfEmpty(input.WorkType),
@@ -127,7 +127,7 @@ func (r *PostgresRepository) UpdateApplication(ctx context.Context, input app.Up
 		ctx,
 		fmt.Sprintf(query, r.applicationsTable()),
 		input.ID,
-		current.CompanyName,
+		nullIfEmpty(current.CompanyName),
 		nullIfEmpty(current.PositionTitle),
 		nullIfEmpty(current.SourceURL),
 		nullIfEmpty(current.WorkType),
@@ -174,6 +174,7 @@ func (r *PostgresRepository) GetApplication(ctx context.Context, id int64) (app.
 
 	var details app.ApplicationDetails
 	var (
+		companyName         *string
 		positionTitle       *string
 		sourceURL           *string
 		workType            *string
@@ -185,7 +186,7 @@ func (r *PostgresRepository) GetApplication(ctx context.Context, id int64) (app.
 
 	err := r.pool.QueryRow(ctx, fmt.Sprintf(applicationQuery, r.applicationsTable(), r.statusHistoryTable()), id).Scan(
 		&details.ID,
-		&details.CompanyName,
+		&companyName,
 		&positionTitle,
 		&sourceURL,
 		&workType,
@@ -204,6 +205,7 @@ func (r *PostgresRepository) GetApplication(ctx context.Context, id int64) (app.
 		return app.ApplicationDetails{}, err
 	}
 
+	details.CompanyName = derefString(companyName)
 	details.PositionTitle = derefString(positionTitle)
 	details.SourceURL = derefString(sourceURL)
 	details.WorkType = derefString(workType)
@@ -353,7 +355,7 @@ func (r *PostgresRepository) buildListApplicationsQuery(input app.ListApplicatio
 
 	if input.CompanyName != "" {
 		args = append(args, "%"+strings.ToLower(input.CompanyName)+"%")
-		conditions = append(conditions, fmt.Sprintf("lower(a.company_name) like $%d", len(args)))
+		conditions = append(conditions, fmt.Sprintf("lower(coalesce(a.company_name, '')) like $%d", len(args)))
 	}
 	if input.PositionTitle != "" {
 		args = append(args, "%"+strings.ToLower(input.PositionTitle)+"%")
@@ -415,7 +417,7 @@ func (r *PostgresRepository) buildSearchApplicationsQuery(input app.SearchApplic
 		args = append(args, "%"+strings.ToLower(input.Query)+"%")
 		param := "$" + strconv.Itoa(len(args))
 		conditions = append(conditions, "("+strings.Join([]string{
-			"lower(a.company_name) like " + param,
+			"lower(coalesce(a.company_name, '')) like " + param,
 			"lower(coalesce(a.position_title, '')) like " + param,
 			"lower(coalesce(a.tech_stack, '')) like " + param,
 		}, " or ")+")")
@@ -501,6 +503,7 @@ func scanApplicationSummary(row interface {
 }) (app.ApplicationSummary, int, error) {
 	var (
 		item                app.ApplicationSummary
+		companyName         *string
 		positionTitle       *string
 		sourceURL           *string
 		workType            *string
@@ -513,7 +516,7 @@ func scanApplicationSummary(row interface {
 
 	if err := row.Scan(
 		&item.ID,
-		&item.CompanyName,
+		&companyName,
 		&positionTitle,
 		&sourceURL,
 		&workType,
@@ -529,6 +532,7 @@ func scanApplicationSummary(row interface {
 		return app.ApplicationSummary{}, 0, err
 	}
 
+	item.CompanyName = derefString(companyName)
 	item.PositionTitle = derefString(positionTitle)
 	item.SourceURL = derefString(sourceURL)
 	item.WorkType = derefString(workType)

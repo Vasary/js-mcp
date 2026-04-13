@@ -3,14 +3,14 @@ package mcpserver
 func toolDefinitions() []map[string]any {
 	return []map[string]any{
 		{
-			"name":        "create_application",
-			"description": "Create a new job application with an initial status and optional first comment",
+			"name":        "create_job_application",
+			"description": "Create a tracked job application record for a vacancy you submitted to an employer",
 			"inputSchema": map[string]any{
 				"type":     "object",
-				"required": []string{"companyName"},
+				"required": []string{"positionTitle"},
 				"properties": map[string]any{
-					"companyName":         map[string]any{"type": "string", "minLength": 1},
-					"positionTitle":       map[string]any{"type": "string"},
+					"companyName":         map[string]any{"type": "string"},
+					"positionTitle":       map[string]any{"type": "string", "minLength": 1},
 					"sourceUrl":           map[string]any{"type": "string"},
 					"workType":            map[string]any{"type": "string"},
 					"salary":              map[string]any{"type": "string"},
@@ -23,8 +23,8 @@ func toolDefinitions() []map[string]any {
 			},
 		},
 		{
-			"name":        "update_application",
-			"description": "Update the editable fields of an existing job application",
+			"name":        "update_job_application",
+			"description": "Update the editable details of a tracked job application you sent to an employer",
 			"inputSchema": map[string]any{
 				"type":     "object",
 				"required": []string{"id"},
@@ -41,8 +41,8 @@ func toolDefinitions() []map[string]any {
 			},
 		},
 		{
-			"name":        "list_applications",
-			"description": "List job applications with filters by company, position title and current status",
+			"name":        "list_job_applications",
+			"description": "List tracked job applications you have submitted to employers, with optional filters",
 			"inputSchema": map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -55,8 +55,8 @@ func toolDefinitions() []map[string]any {
 			},
 		},
 		{
-			"name":        "search_applications",
-			"description": "Search applications by free-text query across company name, position title and tech stack",
+			"name":        "search_job_applications",
+			"description": "Search tracked job applications by company name, position title, or tech stack",
 			"inputSchema": map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -68,8 +68,8 @@ func toolDefinitions() []map[string]any {
 			},
 		},
 		{
-			"name":        "get_recent_applications",
-			"description": "Get the most recently created job applications",
+			"name":        "list_recent_job_applications",
+			"description": "List the most recently created tracked job applications",
 			"inputSchema": map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -79,8 +79,8 @@ func toolDefinitions() []map[string]any {
 			},
 		},
 		{
-			"name":        "get_application",
-			"description": "Get one application with comments, status history and documents",
+			"name":        "get_job_application",
+			"description": "Get one tracked job application with its notes, status history, and attached documents",
 			"inputSchema": map[string]any{
 				"type":     "object",
 				"required": []string{"id"},
@@ -90,8 +90,8 @@ func toolDefinitions() []map[string]any {
 			},
 		},
 		{
-			"name":        "get_application_timeline",
-			"description": "Get one application as a unified timeline of status changes, comments and documents",
+			"name":        "get_job_application_timeline",
+			"description": "Get one tracked job application as a unified timeline of status changes, notes, and documents",
 			"inputSchema": map[string]any{
 				"type":     "object",
 				"required": []string{"applicationId"},
@@ -101,8 +101,8 @@ func toolDefinitions() []map[string]any {
 			},
 		},
 		{
-			"name":        "list_documents",
-			"description": "List documents attached to one application",
+			"name":        "list_job_application_documents",
+			"description": "List the documents attached to one tracked job application",
 			"inputSchema": map[string]any{
 				"type":     "object",
 				"required": []string{"applicationId"},
@@ -112,16 +112,16 @@ func toolDefinitions() []map[string]any {
 			},
 		},
 		{
-			"name":        "get_application_stats",
-			"description": "Get overall application counts grouped by current status",
+			"name":        "get_job_application_stats",
+			"description": "Get overall counts for tracked job applications grouped by current hiring status",
 			"inputSchema": map[string]any{
 				"type":       "object",
 				"properties": map[string]any{},
 			},
 		},
 		{
-			"name":        "add_comment",
-			"description": "Add a timestamped comment to an application",
+			"name":        "add_job_application_note",
+			"description": "Add a timestamped note about recruiter feedback, follow-up, or interview progress",
 			"inputSchema": map[string]any{
 				"type":     "object",
 				"required": []string{"applicationId", "body"},
@@ -132,8 +132,8 @@ func toolDefinitions() []map[string]any {
 			},
 		},
 		{
-			"name":        "change_status",
-			"description": "Add a new status transition entry for an application",
+			"name":        "change_job_application_status",
+			"description": "Change the current hiring stage of a tracked job application and record it in history",
 			"inputSchema": map[string]any{
 				"type":     "object",
 				"required": []string{"applicationId", "status"},
@@ -145,8 +145,8 @@ func toolDefinitions() []map[string]any {
 			},
 		},
 		{
-			"name":        "upload_cv_from_path",
-			"description": "Upload a CV PDF from a local file path and attach it to an application",
+			"name":        "attach_cv_to_job_application",
+			"description": "Attach a CV PDF from a local file path to a tracked job application",
 			"inputSchema": map[string]any{
 				"type":     "object",
 				"required": []string{"applicationId", "filePath"},
@@ -157,8 +157,8 @@ func toolDefinitions() []map[string]any {
 			},
 		},
 		{
-			"name":        "upload_cover_letter_from_path",
-			"description": "Upload a cover letter PDF from a local file path and attach it to an application",
+			"name":        "attach_cover_letter_to_job_application",
+			"description": "Attach a cover letter PDF from a local file path to a tracked job application",
 			"inputSchema": map[string]any{
 				"type":     "object",
 				"required": []string{"applicationId", "filePath"},
