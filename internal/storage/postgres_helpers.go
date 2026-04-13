@@ -1,7 +1,9 @@
 package storage
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -37,4 +39,11 @@ func derefString(value *string) string {
 		return ""
 	}
 	return *value
+}
+
+func (r *PostgresRepository) ensureApplicationExists(ctx context.Context, applicationID int64) error {
+	query := fmt.Sprintf(`select 1 from %s where id = $1`, r.applicationsTable())
+	var one int
+	err := r.pool.QueryRow(ctx, query, applicationID).Scan(&one)
+	return translateNotFound(err)
 }

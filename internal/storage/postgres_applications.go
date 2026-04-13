@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -249,6 +250,95 @@ func (r *PostgresRepository) ListApplications(ctx context.Context, input app.Lis
 	return out, nil
 }
 
+func (r *PostgresRepository) SearchApplications(ctx context.Context, input app.SearchApplicationsInput) (app.ListApplicationsOutput, error) {
+	query, args := r.buildSearchApplicationsQuery(input)
+
+	rows, err := r.pool.Query(ctx, query, args...)
+	if err != nil {
+		return app.ListApplicationsOutput{}, err
+	}
+	defer rows.Close()
+
+	out := app.ListApplicationsOutput{Items: []app.ApplicationSummary{}}
+	for rows.Next() {
+		item, total, err := scanApplicationSummary(rows)
+		if err != nil {
+			return app.ListApplicationsOutput{}, err
+		}
+		out.Total = total
+		out.Items = append(out.Items, item)
+	}
+
+	if err := rows.Err(); err != nil {
+		return app.ListApplicationsOutput{}, err
+	}
+	return out, nil
+}
+
+func (r *PostgresRepository) GetRecentApplications(ctx context.Context, input app.RecentApplicationsInput) (app.ListApplicationsOutput, error) {
+	query, args := r.buildRecentApplicationsQuery(input)
+
+	rows, err := r.pool.Query(ctx, query, args...)
+	if err != nil {
+		return app.ListApplicationsOutput{}, err
+	}
+	defer rows.Close()
+
+	out := app.ListApplicationsOutput{Items: []app.ApplicationSummary{}}
+	for rows.Next() {
+		item, total, err := scanApplicationSummary(rows)
+		if err != nil {
+			return app.ListApplicationsOutput{}, err
+		}
+		out.Total = total
+		out.Items = append(out.Items, item)
+	}
+
+	if err := rows.Err(); err != nil {
+		return app.ListApplicationsOutput{}, err
+	}
+	return out, nil
+}
+
+func (r *PostgresRepository) GetApplicationStats(ctx context.Context) (app.ApplicationStats, error) {
+	query := fmt.Sprintf(`
+		select sh.status, count(*)
+		from %s a
+		join lateral (
+			select status
+			from %s
+			where application_id = a.id
+			order by changed_at desc, id desc
+			limit 1
+		) sh on true
+		group by sh.status
+	`, r.applicationsTable(), r.statusHistoryTable())
+
+	rows, err := r.pool.Query(ctx, query)
+	if err != nil {
+		return app.ApplicationStats{}, err
+	}
+	defer rows.Close()
+
+	stats := app.ApplicationStats{ByStatus: map[app.ApplicationStatus]int{}}
+	for rows.Next() {
+		var (
+			status string
+			count  int
+		)
+		if err := rows.Scan(&status, &count); err != nil {
+			return app.ApplicationStats{}, err
+		}
+		stats.ByStatus[app.ApplicationStatus(status)] = count
+		stats.Total += count
+	}
+
+	if err := rows.Err(); err != nil {
+		return app.ApplicationStats{}, err
+	}
+	return stats, nil
+}
+
 func (r *PostgresRepository) buildListApplicationsQuery(input app.ListApplicationsInput) (string, []any) {
 	var (
 		args       []any
@@ -307,6 +397,103 @@ func (r *PostgresRepository) buildListApplicationsQuery(input app.ListApplicatio
 	`
 
 	return fmt.Sprintf(query, r.applicationsTable(), r.statusHistoryTable()), args
+}
+
+func (r *PostgresRepository) buildSearchApplicationsQuery(input app.SearchApplicationsInput) (string, []any) {
+	var (
+		args       []any
+		conditions []string
+	)
+
+	limit := input.Limit
+	if limit <= 0 {
+		limit = 100
+	}
+	args = append(args, limit, input.Offset)
+
+	if input.Query != "" {
+		args = append(args, "%"+strings.ToLower(input.Query)+"%")
+		param := "$" + strconv.Itoa(len(args))
+		conditions = append(conditions, "("+strings.Join([]string{
+			"lower(a.company_name) like " + param,
+			"lower(coalesce(a.position_title, '')) like " + param,
+			"lower(coalesce(a.tech_stack, '')) like " + param,
+		}, " or ")+")")
+	}
+	if input.CurrentStatus != "" {
+		args = append(args, string(input.CurrentStatus))
+		conditions = append(conditions, fmt.Sprintf("sh.status = $%d", len(args)))
+	}
+
+	where := ""
+	if len(conditions) > 0 {
+		where = " where " + strings.Join(conditions, " and ")
+	}
+
+	query := `
+		select
+			a.id,
+			a.company_name,
+			a.position_title,
+			a.source_url,
+			a.work_type,
+			a.salary,
+			a.position_description,
+			a.tech_stack,
+			a.created_at,
+			a.updated_at,
+			sh.status,
+			sh.changed_at,
+			count(*) over()
+		from %s a
+		join lateral (
+			select status, changed_at
+			from %s
+			where application_id = a.id
+			order by changed_at desc, id desc
+			limit 1
+		) sh on true` + where + `
+		order by sh.changed_at desc, a.id desc
+		limit $1 offset $2
+	`
+
+	return fmt.Sprintf(query, r.applicationsTable(), r.statusHistoryTable()), args
+}
+
+func (r *PostgresRepository) buildRecentApplicationsQuery(input app.RecentApplicationsInput) (string, []any) {
+	limit := input.Limit
+	if limit <= 0 {
+		limit = 20
+	}
+
+	query := `
+		select
+			a.id,
+			a.company_name,
+			a.position_title,
+			a.source_url,
+			a.work_type,
+			a.salary,
+			a.position_description,
+			a.tech_stack,
+			a.created_at,
+			a.updated_at,
+			sh.status,
+			sh.changed_at,
+			count(*) over()
+		from %s a
+		join lateral (
+			select status, changed_at
+			from %s
+			where application_id = a.id
+			order by changed_at desc, id desc
+			limit 1
+		) sh on true
+		order by a.created_at desc, a.id desc
+		limit $1 offset $2
+	`
+
+	return fmt.Sprintf(query, r.applicationsTable(), r.statusHistoryTable()), []any{limit, input.Offset}
 }
 
 func scanApplicationSummary(row interface {

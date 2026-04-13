@@ -54,6 +54,31 @@ type ApplicationDetails struct {
 	Documents     []Document     `json:"documents"`
 }
 
+type DocumentList struct {
+	ApplicationID int64      `json:"applicationId"`
+	Items         []Document `json:"items"`
+	Total         int        `json:"total"`
+}
+
+type TimelineEvent struct {
+	Type         string        `json:"type"`
+	OccurredAt   time.Time     `json:"occurredAt"`
+	Comment      *Comment      `json:"comment,omitempty"`
+	StatusChange *StatusChange `json:"statusChange,omitempty"`
+	Document     *Document     `json:"document,omitempty"`
+}
+
+type ApplicationTimeline struct {
+	ApplicationID int64           `json:"applicationId"`
+	Events        []TimelineEvent `json:"events"`
+	Total         int             `json:"total"`
+}
+
+type ApplicationStats struct {
+	Total    int                       `json:"total"`
+	ByStatus map[ApplicationStatus]int `json:"byStatus"`
+}
+
 type Comment struct {
 	ID            int64     `json:"id"`
 	ApplicationID int64     `json:"applicationId"`

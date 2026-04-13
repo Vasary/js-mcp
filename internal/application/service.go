@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 )
@@ -25,9 +26,13 @@ type Repository interface {
 	UpdateApplication(ctx context.Context, input UpdateApplicationInput, now time.Time) (ApplicationDetails, error)
 	GetApplication(ctx context.Context, id int64) (ApplicationDetails, error)
 	ListApplications(ctx context.Context, input ListApplicationsInput) (ListApplicationsOutput, error)
+	SearchApplications(ctx context.Context, input SearchApplicationsInput) (ListApplicationsOutput, error)
+	GetRecentApplications(ctx context.Context, input RecentApplicationsInput) (ListApplicationsOutput, error)
 	AddComment(ctx context.Context, input AddCommentInput, now time.Time) (Comment, error)
 	ChangeStatus(ctx context.Context, input ChangeStatusInput, now time.Time) (StatusChange, error)
 	AddDocument(ctx context.Context, input AddDocumentRecordInput, now time.Time) (Document, error)
+	ListDocuments(ctx context.Context, applicationID int64) (DocumentList, error)
+	GetApplicationStats(ctx context.Context) (ApplicationStats, error)
 }
 
 type FileStore interface {
@@ -92,6 +97,18 @@ type ListApplicationsInput struct {
 type ListApplicationsOutput struct {
 	Items []ApplicationSummary `json:"items"`
 	Total int                  `json:"total"`
+}
+
+type SearchApplicationsInput struct {
+	Query         string            `json:"query,omitempty"`
+	CurrentStatus ApplicationStatus `json:"currentStatus,omitempty"`
+	Limit         int               `json:"limit,omitempty"`
+	Offset        int               `json:"offset,omitempty"`
+}
+
+type RecentApplicationsInput struct {
+	Limit  int `json:"limit,omitempty"`
+	Offset int `json:"offset,omitempty"`
 }
 
 type AddCommentInput struct {
@@ -217,6 +234,24 @@ func (s *Service) AddComment(ctx context.Context, input AddCommentInput) (Commen
 	return s.repo.AddComment(ctx, input, s.now())
 }
 
+func (s *Service) SearchApplications(ctx context.Context, input SearchApplicationsInput) (ListApplicationsOutput, error) {
+	input.Query = strings.TrimSpace(input.Query)
+	if input.CurrentStatus != "" && !input.CurrentStatus.Valid() {
+		return ListApplicationsOutput{}, ErrInvalidStatus
+	}
+	if input.Limit < 0 || input.Offset < 0 {
+		return ListApplicationsOutput{}, fmt.Errorf("%w: limit and offset must be non-negative", ErrInvalidInput)
+	}
+	return s.repo.SearchApplications(ctx, input)
+}
+
+func (s *Service) GetRecentApplications(ctx context.Context, input RecentApplicationsInput) (ListApplicationsOutput, error) {
+	if input.Limit < 0 || input.Offset < 0 {
+		return ListApplicationsOutput{}, fmt.Errorf("%w: limit and offset must be non-negative", ErrInvalidInput)
+	}
+	return s.repo.GetRecentApplications(ctx, input)
+}
+
 func (s *Service) ChangeStatus(ctx context.Context, input ChangeStatusInput) (StatusChange, error) {
 	input.Note = strings.TrimSpace(input.Note)
 	if input.ApplicationID <= 0 {
@@ -256,6 +291,71 @@ func (s *Service) UploadCVFromPath(ctx context.Context, input UploadCVFromPathIn
 
 func (s *Service) UploadCoverLetter(ctx context.Context, input UploadCoverLetterInput) (Document, error) {
 	return s.uploadDocument(ctx, input.ApplicationID, DocumentTypeCoverLetter, input.Filename, input.Body)
+}
+
+func (s *Service) ListDocuments(ctx context.Context, applicationID int64) (DocumentList, error) {
+	if applicationID <= 0 {
+		return DocumentList{}, fmt.Errorf("%w: applicationId must be positive", ErrInvalidInput)
+	}
+	return s.repo.ListDocuments(ctx, applicationID)
+}
+
+func (s *Service) GetApplicationTimeline(ctx context.Context, applicationID int64) (ApplicationTimeline, error) {
+	if applicationID <= 0 {
+		return ApplicationTimeline{}, fmt.Errorf("%w: applicationId must be positive", ErrInvalidInput)
+	}
+
+	details, err := s.repo.GetApplication(ctx, applicationID)
+	if err != nil {
+		return ApplicationTimeline{}, err
+	}
+
+	events := make([]TimelineEvent, 0, len(details.Comments)+len(details.StatusHistory)+len(details.Documents))
+	for i := range details.StatusHistory {
+		change := details.StatusHistory[i]
+		events = append(events, TimelineEvent{
+			Type:         "status_change",
+			OccurredAt:   change.ChangedAt,
+			StatusChange: &change,
+		})
+	}
+	for i := range details.Comments {
+		comment := details.Comments[i]
+		events = append(events, TimelineEvent{
+			Type:       "comment",
+			OccurredAt: comment.CreatedAt,
+			Comment:    &comment,
+		})
+	}
+	for i := range details.Documents {
+		document := details.Documents[i]
+		events = append(events, TimelineEvent{
+			Type:       "document",
+			OccurredAt: document.UploadedAt,
+			Document:   &document,
+		})
+	}
+
+	sort.SliceStable(events, func(i, j int) bool {
+		return events[i].OccurredAt.After(events[j].OccurredAt)
+	})
+
+	return ApplicationTimeline{
+		ApplicationID: applicationID,
+		Events:        events,
+		Total:         len(events),
+	}, nil
+}
+
+func (s *Service) GetApplicationStats(ctx context.Context) (ApplicationStats, error) {
+	stats, err := s.repo.GetApplicationStats(ctx)
+	if err != nil {
+		return ApplicationStats{}, err
+	}
+	if stats.ByStatus == nil {
+		stats.ByStatus = map[ApplicationStatus]int{}
+	}
+	return stats, nil
 }
 
 func (s *Service) UploadCoverLetterFromPath(ctx context.Context, input UploadCoverLetterFromPathInput) (Document, error) {

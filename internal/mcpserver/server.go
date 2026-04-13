@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	app "github.com/vasary/job-search-mcp/internal/application"
 )
@@ -155,12 +156,38 @@ func (s *Server) handleToolCall(ctx context.Context, request rpcRequest) (rpcRes
 		if err == nil {
 			result, err = s.service.ListApplications(ctx, input)
 		}
+	case "search_applications":
+		var input app.SearchApplicationsInput
+		err = decodeArguments(params.Arguments, &input)
+		if err == nil {
+			result, err = s.service.SearchApplications(ctx, input)
+		}
+	case "get_recent_applications":
+		var input app.RecentApplicationsInput
+		err = decodeArguments(params.Arguments, &input)
+		if err == nil {
+			result, err = s.service.GetRecentApplications(ctx, input)
+		}
 	case "get_application":
 		var input getApplicationInput
 		err = decodeArguments(params.Arguments, &input)
 		if err == nil {
 			result, err = s.service.GetApplication(ctx, input.ID)
 		}
+	case "get_application_timeline":
+		var input applicationIDInput
+		err = decodeArguments(params.Arguments, &input)
+		if err == nil {
+			result, err = s.service.GetApplicationTimeline(ctx, input.ApplicationID)
+		}
+	case "list_documents":
+		var input applicationIDInput
+		err = decodeArguments(params.Arguments, &input)
+		if err == nil {
+			result, err = s.service.ListDocuments(ctx, input.ApplicationID)
+		}
+	case "get_application_stats":
+		result, err = s.service.GetApplicationStats(ctx)
 	case "add_comment":
 		var input app.AddCommentInput
 		err = decodeArguments(params.Arguments, &input)
@@ -197,15 +224,24 @@ func (s *Server) handleToolCall(ctx context.Context, request rpcRequest) (rpcRes
 		return toolErrorResponse(request.ID, err), nil
 	}
 
+	resultText, err := formatToolResultText(result)
+	if err != nil {
+		return rpcResponse{}, err
+	}
+
 	return rpcResponse{
 		JSONRPC: "2.0",
 		ID:      request.ID,
 		Result: map[string]any{
-			"content":           []map[string]any{{"type": "text", "text": "ok"}},
+			"content":           []map[string]any{{"type": "text", "text": resultText}},
 			"structuredContent": result,
 			"isError":           false,
 		},
 	}, nil
+}
+
+type applicationIDInput struct {
+	ApplicationID int64 `json:"applicationId"`
 }
 
 func toolErrorResponse(id any, err error) rpcResponse {
@@ -258,6 +294,19 @@ func decodeArguments(raw json.RawMessage, out any) error {
 		return nil
 	}
 	return json.Unmarshal(raw, out)
+}
+
+func formatToolResultText(result any) (string, error) {
+	if result == nil {
+		return "null", nil
+	}
+
+	payload, err := json.MarshalIndent(result, "", "  ")
+	if err != nil {
+		return "", err
+	}
+
+	return strings.TrimSpace(string(payload)), nil
 }
 
 type rpcRequest struct {

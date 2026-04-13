@@ -140,6 +140,14 @@ func (f *fakeRepo) ListApplications(context.Context, application.ListApplication
 	return application.ListApplicationsOutput{}, nil
 }
 
+func (f *fakeRepo) SearchApplications(context.Context, application.SearchApplicationsInput) (application.ListApplicationsOutput, error) {
+	return application.ListApplicationsOutput{}, nil
+}
+
+func (f *fakeRepo) GetRecentApplications(context.Context, application.RecentApplicationsInput) (application.ListApplicationsOutput, error) {
+	return application.ListApplicationsOutput{}, nil
+}
+
 func (f *fakeRepo) AddComment(context.Context, application.AddCommentInput, time.Time) (application.Comment, error) {
 	return application.Comment{}, nil
 }
@@ -151,6 +159,14 @@ func (f *fakeRepo) ChangeStatus(context.Context, application.ChangeStatusInput, 
 func (f *fakeRepo) AddDocument(_ context.Context, input application.AddDocumentRecordInput, _ time.Time) (application.Document, error) {
 	f.addedDocument = input
 	return f.documentResult, nil
+}
+
+func (f *fakeRepo) ListDocuments(context.Context, int64) (application.DocumentList, error) {
+	return application.DocumentList{}, nil
+}
+
+func (f *fakeRepo) GetApplicationStats(context.Context) (application.ApplicationStats, error) {
+	return application.ApplicationStats{}, nil
 }
 
 type fakeFileStore struct {

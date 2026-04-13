@@ -55,6 +55,30 @@ func toolDefinitions() []map[string]any {
 			},
 		},
 		{
+			"name":        "search_applications",
+			"description": "Search applications by free-text query across company name, position title and tech stack",
+			"inputSchema": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"query":         map[string]any{"type": "string"},
+					"currentStatus": statusSchema(),
+					"limit":         map[string]any{"type": "integer", "minimum": 0},
+					"offset":        map[string]any{"type": "integer", "minimum": 0},
+				},
+			},
+		},
+		{
+			"name":        "get_recent_applications",
+			"description": "Get the most recently created job applications",
+			"inputSchema": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"limit":  map[string]any{"type": "integer", "minimum": 0},
+					"offset": map[string]any{"type": "integer", "minimum": 0},
+				},
+			},
+		},
+		{
 			"name":        "get_application",
 			"description": "Get one application with comments, status history and documents",
 			"inputSchema": map[string]any{
@@ -63,6 +87,36 @@ func toolDefinitions() []map[string]any {
 				"properties": map[string]any{
 					"id": map[string]any{"type": "integer", "minimum": 1},
 				},
+			},
+		},
+		{
+			"name":        "get_application_timeline",
+			"description": "Get one application as a unified timeline of status changes, comments and documents",
+			"inputSchema": map[string]any{
+				"type":     "object",
+				"required": []string{"applicationId"},
+				"properties": map[string]any{
+					"applicationId": map[string]any{"type": "integer", "minimum": 1},
+				},
+			},
+		},
+		{
+			"name":        "list_documents",
+			"description": "List documents attached to one application",
+			"inputSchema": map[string]any{
+				"type":     "object",
+				"required": []string{"applicationId"},
+				"properties": map[string]any{
+					"applicationId": map[string]any{"type": "integer", "minimum": 1},
+				},
+			},
+		},
+		{
+			"name":        "get_application_stats",
+			"description": "Get overall application counts grouped by current status",
+			"inputSchema": map[string]any{
+				"type":       "object",
+				"properties": map[string]any{},
 			},
 		},
 		{

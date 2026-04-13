@@ -65,6 +65,23 @@ func (r *PostgresRepository) AddDocument(ctx context.Context, input app.AddDocum
 	return document, nil
 }
 
+func (r *PostgresRepository) ListDocuments(ctx context.Context, applicationID int64) (app.DocumentList, error) {
+	if err := r.ensureApplicationExists(ctx, applicationID); err != nil {
+		return app.DocumentList{}, err
+	}
+
+	items, err := r.listDocuments(ctx, applicationID)
+	if err != nil {
+		return app.DocumentList{}, err
+	}
+
+	return app.DocumentList{
+		ApplicationID: applicationID,
+		Items:         items,
+		Total:         len(items),
+	}, nil
+}
+
 func (r *PostgresRepository) listDocuments(ctx context.Context, applicationID int64) ([]app.Document, error) {
 	const query = `
 		select
