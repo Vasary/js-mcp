@@ -200,6 +200,104 @@ func TestToolsCallGetApplicationTimelineReturnsEvents(t *testing.T) {
 	}
 }
 
+func TestToolsCallResponsesContainRealData(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		requestLine string
+		wantParts   []string
+	}{
+		{
+			name:        "search_applications",
+			requestLine: `{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"search_applications","arguments":{"query":"openai"}}}`,
+			wantParts:   []string{`"items"`, `"OpenAI"`},
+		},
+		{
+			name:        "get_recent_applications",
+			requestLine: `{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"get_recent_applications","arguments":{"limit":5}}}`,
+			wantParts:   []string{`"items"`, `"OpenAI"`},
+		},
+		{
+			name:        "get_application",
+			requestLine: `{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"get_application","arguments":{"id":1}}}`,
+			wantParts:   []string{`"comments"`, `"statusHistory"`, `"documents"`},
+		},
+		{
+			name:        "list_documents",
+			requestLine: `{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"list_documents","arguments":{"applicationId":1}}}`,
+			wantParts:   []string{`"items"`, `"cv.pdf"`},
+		},
+		{
+			name:        "add_comment",
+			requestLine: `{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"add_comment","arguments":{"applicationId":1,"body":"followed up"}}}`,
+			wantParts:   []string{`"body"`, `"followed up"`},
+		},
+		{
+			name:        "change_status",
+			requestLine: `{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"change_status","arguments":{"applicationId":1,"status":"interview","note":"scheduled"}}}`,
+			wantParts:   []string{`"status"`, `"interview"`},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			in := strings.Join([]string{
+				`{"jsonrpc":"2.0","id":1,"method":"initialize"}`,
+				`{"jsonrpc":"2.0","method":"notifications/initialized"}`,
+				tt.requestLine,
+			}, "\n") + "\n"
+
+			var out bytes.Buffer
+			server := New(app.NewService(&fakeRepo{}, &fakeFileStore{}))
+			server.input = strings.NewReader(in)
+			server.output = &out
+
+			if err := server.Run(context.Background()); err != nil {
+				t.Fatalf("Run() error = %v", err)
+			}
+
+			lines := strings.Split(strings.TrimSpace(out.String()), "\n")
+			if len(lines) != 2 {
+				t.Fatalf("responses = %d, want 2", len(lines))
+			}
+
+			var resp struct {
+				Result struct {
+					Content []struct {
+						Text string `json:"text"`
+					} `json:"content"`
+					IsError bool `json:"isError"`
+				} `json:"result"`
+				Error *rpcError `json:"error"`
+			}
+
+			if err := json.Unmarshal([]byte(lines[1]), &resp); err != nil {
+				t.Fatalf("unmarshal response: %v", err)
+			}
+			if resp.Error != nil {
+				t.Fatalf("tools/call error = %+v", resp.Error)
+			}
+			if resp.Result.IsError {
+				t.Fatalf("tools/call returned isError=true")
+			}
+			if len(resp.Result.Content) != 1 {
+				t.Fatalf("content items = %d, want 1", len(resp.Result.Content))
+			}
+			if got := strings.TrimSpace(resp.Result.Content[0].Text); got == "ok" {
+				t.Fatalf("content text = %q, want real payload", got)
+			}
+			for _, want := range tt.wantParts {
+				if !strings.Contains(resp.Result.Content[0].Text, want) {
+					t.Fatalf("content text = %q, want substring %q", resp.Result.Content[0].Text, want)
+				}
+			}
+		})
+	}
+}
+
 type fakeRepo struct{}
 
 func (f *fakeRepo) Ping(context.Context) error { return nil }
@@ -256,10 +354,23 @@ func (f *fakeRepo) GetRecentApplications(context.Context, app.RecentApplications
 	return f.ListApplications(context.Background(), app.ListApplicationsInput{})
 }
 func (f *fakeRepo) AddComment(context.Context, app.AddCommentInput, time.Time) (app.Comment, error) {
-	return app.Comment{}, nil
+	now := time.Date(2026, 4, 13, 12, 30, 0, 0, time.UTC)
+	return app.Comment{
+		ID:            2,
+		ApplicationID: 1,
+		Body:          "followed up",
+		CreatedAt:     now,
+	}, nil
 }
 func (f *fakeRepo) ChangeStatus(context.Context, app.ChangeStatusInput, time.Time) (app.StatusChange, error) {
-	return app.StatusChange{}, nil
+	now := time.Date(2026, 4, 13, 13, 0, 0, 0, time.UTC)
+	return app.StatusChange{
+		ID:            2,
+		ApplicationID: 1,
+		Status:        app.StatusInterview,
+		Note:          "scheduled",
+		ChangedAt:     now,
+	}, nil
 }
 func (f *fakeRepo) AddDocument(context.Context, app.AddDocumentRecordInput, time.Time) (app.Document, error) {
 	return app.Document{}, nil
